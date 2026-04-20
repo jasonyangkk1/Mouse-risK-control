@@ -65,6 +65,10 @@ ${userProvidedPrice ? `使用者提供參考價格：${userProvidedPrice} 元（
 3. "${ticker} 月營收 ${new Date().getFullYear()}"
 4. "${ticker} 股價 今日"
 
+⚠️ 注意事項：
+- 務必確認股票代號與公司名稱完全匹配。
+- 範例：**3491 是 昇達科 (Shengda)**，**8086 才是 宏捷科 (AWSC)**。請勿混淆這兩者。
+
 ### 原則二：目標價必須有來源才能填入
 對於 analystTargets 陣列中的每一筆：
 - 搜尋結果中找到具體連結 → dataReliability = "VERIFIED"，填入 sourceUrl
