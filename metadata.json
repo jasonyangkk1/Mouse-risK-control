@@ -1,0 +1,6 @@
+{
+  "name": "風控型分析儀",
+  "description": "Stock risk control analyzer using Gemini 2.0 to evaluate F-Score, Market Breadth, and Risk-Reward ratios for intelligent investment decisions.",
+  "requestFramePermissions": [],
+  "majorCapabilities": []
+}
