@@ -102,23 +102,39 @@ export const fetchStockPrice = async (ticker: string): Promise<{ name: string; c
     // 1. Try TWSE API (Listed)
     const twseUrl = `https://mis.twse.com.tw/stock/api/getStockInfo.jsp?ex_ch=tse_${ticker}.tw`;
     const twseRes = await fetch(`${proxyBase}${encodeURIComponent(twseUrl)}`);
-    const twseData = await twseRes.json();
-
-    if (twseData.msgArray && twseData.msgArray.length > 0) {
-      const info = twseData.msgArray[0];
-      return {
-        name: info.n,
-        currentPrice: parseFloat(info.z) || parseFloat(info.y),
-        lastClose: parseFloat(info.y),
-        exchange: "TSE"
-      };
+    
+    if (!twseRes.ok) {
+      console.warn("TWSE proxy failed, status:", twseRes.status);
+    } else {
+      const contentType = twseRes.headers.get("content-type");
+      if (contentType && contentType.includes("application/json")) {
+        const twseData = await twseRes.json();
+        if (twseData.msgArray && twseData.msgArray.length > 0) {
+          const info = twseData.msgArray[0];
+          return {
+            name: info.n,
+            currentPrice: parseFloat(info.z) || parseFloat(info.y),
+            lastClose: parseFloat(info.y),
+            exchange: "TSE"
+          };
+        }
+      }
     }
 
     // 2. Try OTC (TPEx)
     const otcUrl = `https://mis.twse.com.tw/stock/api/getStockInfo.jsp?ex_ch=otc_${ticker}.tw`;
     const otcRes = await fetch(`${proxyBase}${encodeURIComponent(otcUrl)}`);
-    const otcData = await otcRes.json();
+    
+    if (!otcRes.ok) {
+      throw new Error(`連線失敗 (Status: ${otcRes.status})。若您使用 Vercel/手機，請確保後端代理已正確佈署。`);
+    }
 
+    const contentType = otcRes.headers.get("content-type");
+    if (!contentType || !contentType.includes("application/json")) {
+      throw new Error("API 回傳格式錯誤，可能是代理伺服器未啟動或路徑無效。");
+    }
+
+    const otcData = await otcRes.json();
     if (otcData.msgArray && otcData.msgArray.length > 0) {
       const info = otcData.msgArray[0];
       return {
@@ -132,7 +148,7 @@ export const fetchStockPrice = async (ticker: string): Promise<{ name: string; c
     throw new Error("找不到此台股代號，請確認後重試");
   } catch (error) {
     console.error("fetchStockPrice error:", error);
-    throw new Error(error instanceof Error ? error.message : "取得股價失敗");
+    throw new Error(error instanceof Error ? error.message : "取得股價失敗，請檢查網路連線");
   }
 };
 

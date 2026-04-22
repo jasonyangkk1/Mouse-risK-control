@@ -127,7 +127,7 @@ export default function App() {
       }
     } catch (err) {
       console.error(err);
-      setError('搜尋失敗，請檢查網路連線或稍後再試。');
+      setError(err instanceof Error ? err.message : '搜尋失敗，請檢查網路連線或稍後再試。');
     } finally {
       setLoading(false);
     }
@@ -160,7 +160,7 @@ export default function App() {
       setPrice(''); // Clear price after success
     } catch (err) {
       console.error(err);
-      setError('分析失敗，請檢查網路連線或稍後再試。');
+      setError(err instanceof Error ? err.message : '分析失敗，請檢查網路連線或稍後再試。');
     } finally {
       setLoading(false);
     }
