@@ -97,45 +97,58 @@ export const resolveStockTicker = async (input: string): Promise<TickerResolutio
 };
 
 export const fetchStockPrice = async (ticker: string): Promise<{ name: string; currentPrice: number; lastClose: number; exchange: string }> => {
-  const proxyBase = "/api/stock-proxy?url=";
-  try {
-    // 1. Try TWSE API (Listed)
-    const twseUrl = `https://mis.twse.com.tw/stock/api/getStockInfo.jsp?ex_ch=tse_${ticker}.tw`;
-    const twseRes = await fetch(`${proxyBase}${encodeURIComponent(twseUrl)}`);
-    
-    if (!twseRes.ok) {
-      console.warn("TWSE proxy failed, status:", twseRes.status);
-    } else {
-      const contentType = twseRes.headers.get("content-type");
-      if (contentType && contentType.includes("application/json")) {
-        const twseData = await twseRes.json();
-        if (twseData.msgArray && twseData.msgArray.length > 0) {
-          const info = twseData.msgArray[0];
-          return {
-            name: info.n,
-            currentPrice: parseFloat(info.z) || parseFloat(info.y),
-            lastClose: parseFloat(info.y),
-            exchange: "TSE"
-          };
+  const localProxyBase = "/api/stock-proxy?url=";
+  const publicProxyBase = "https://api.allorigins.win/get?url=";
+  
+  const fetchFromUrl = async (targetUrl: string) => {
+    // 1. Try local Express proxy first
+    try {
+      const localRes = await fetch(`${localProxyBase}${encodeURIComponent(targetUrl)}`);
+      if (localRes.ok) {
+        const contentType = localRes.headers.get("content-type");
+        if (contentType && contentType.includes("application/json")) {
+          return await localRes.json();
         }
       }
+    } catch (e) {
+      console.warn("Local proxy unavailable, trying fallback...");
     }
 
-    // 2. Try OTC (TPEx)
-    const otcUrl = `https://mis.twse.com.tw/stock/api/getStockInfo.jsp?ex_ch=otc_${ticker}.tw`;
-    const otcRes = await fetch(`${proxyBase}${encodeURIComponent(otcUrl)}`);
+    // 2. Fallback to public proxy (for Vercel/Static deployments)
+    const publicUrl = `${publicProxyBase}${encodeURIComponent(targetUrl)}`;
+    const publicRes = await fetch(publicUrl);
+    if (!publicRes.ok) throw new Error(`連線失敗 (Status: ${publicRes.status})`);
     
-    if (!otcRes.ok) {
-      throw new Error(`連線失敗 (Status: ${otcRes.status})。若您使用 Vercel/手機，請確保後端代理已正確佈署。`);
+    const data = await publicRes.json();
+    if (!data.contents) throw new Error("代理伺服器回傳無效數據");
+    
+    try {
+      return JSON.parse(data.contents);
+    } catch (e) {
+      throw new Error("解析官方數據失敗，請稍後再試");
+    }
+  };
+
+  try {
+    // Attempt TWSE
+    const twseUrl = `https://mis.twse.com.tw/stock/api/getStockInfo.jsp?ex_ch=tse_${ticker}.tw`;
+    const twseData = await fetchFromUrl(twseUrl);
+
+    if (twseData?.msgArray?.length > 0) {
+      const info = twseData.msgArray[0];
+      return {
+        name: info.n,
+        currentPrice: parseFloat(info.z) || parseFloat(info.y),
+        lastClose: parseFloat(info.y),
+        exchange: "TSE"
+      };
     }
 
-    const contentType = otcRes.headers.get("content-type");
-    if (!contentType || !contentType.includes("application/json")) {
-      throw new Error("API 回傳格式錯誤，可能是代理伺服器未啟動或路徑無效。");
-    }
+    // Attempt TPEx
+    const otcUrl = `https://mis.twse.com.tw/stock/api/getStockInfo.jsp?ex_ch=otc_${ticker}.tw`;
+    const otcData = await fetchFromUrl(otcUrl);
 
-    const otcData = await otcRes.json();
-    if (otcData.msgArray && otcData.msgArray.length > 0) {
+    if (otcData?.msgArray?.length > 0) {
       const info = otcData.msgArray[0];
       return {
         name: info.n,
