@@ -54,26 +54,28 @@ export const analyzeStock = async (ticker: string, userProvidedPrice?: number): 
 
 ## 分析標的
 股票代號：${ticker}
-${userProvidedPrice ? `使用者提供參考價格：${userProvidedPrice} 元（僅供參考，仍需搜尋確認最新市價）` : ""}
+${userProvidedPrice ? `⚠️ **絕對基準指令**：使用者已核實今日收盤價為 **${userProvidedPrice} 元**。在 JSON 輸出中的 currentPrice 必須填寫 ${userProvidedPrice}，且所有技術面分析（如盈虧比、支撐位、目標位）必須以此價格為計算基準，禁止使用搜尋到的舊數據覆蓋此值。` : ""}
 
 ## 【核心指令：搜尋優先，誠實標記】
 
 ### 原則一：先搜尋，後分析
 請先使用 Google Search 搜尋以下資訊再作答：
-1. "${ticker} 目標價 券商 ${new Date().getFullYear()}"
-2. "${ticker} 法人評等 買進 上調"
-3. "${ticker} 月營收 ${new Date().getFullYear()}"
-4. "${ticker} 股價 今日"
+1. "${ticker} (聯亞光) 台股最新目標價 凱基 元大 摩根大通 高盛 報告 ${new Date().getFullYear()}"
+2. "${ticker} 評等 目標價 鉅亨網 MoneyDJ 工商時報"
+3. "${ticker} 最新法人個股報告 摘要"
+4. "${ticker} 3081 股價即時報價 奇摩股市"
 
-⚠️ 注意事項：
-- 務必確認股票代號與公司名稱完全匹配。
-- 範例：**3491 是 昇達科 (Shengda)**，**8086 才是 宏捷科 (AWSC)**。請勿混淆這兩者。
+⚠️ 數據審核專項指令：
+- **3081 聯亞 (LandMark Optoelectronics)**：必須精確搜尋「聯亞光電」以區別聯亞藥。其目前業務為矽光子 (CPO) 與光通訊雷射晶片。
+- **絕對真實報價原則**：禁止預設任何價格區間。AI 必須 100% 採信 Google Search 抓取到的「最新成交價」或「今日收盤價」。
+- **千金股/高價股識別**：若搜尋結果顯示報價為數千元（如 3005 元），請務必精確填寫，不得自行刪除或修改位數。
+- **目標價驗證**：若找不到 VERIFIED 來源，請搜尋該公司近期（近三個月）的法人評等、法說會摘要或券商研究報告。
 
-### 原則二：目標價必須有來源才能填入
+### 原則二：目標價數據提取準則 (誠實為本)
 對於 analystTargets 陣列中的每一筆：
-- 搜尋結果中找到具體連結 → dataReliability = "VERIFIED"，填入 sourceUrl
-- 只在摘要中看到提及但無完整連結 → dataReliability = "INFERRED"
-- 完全找不到公開來源 → dataReliability = "UNVERIFIED"，targetPrice 填 null，broker 填 "查無公開報告"
+- **等級 A (VERIFIED)**：找到正式 PDF 報告或券商官方發布之完整連結資料。
+- **等級 B (INFERRED)**：在 MoneyDJ、鉅亨網、工商時報、經濟日報等台灣權威財經媒體中，看到明確引述「某券商(如：大摩)將目標價上調至 XXX 元」的即時報導。此類數據請填入該新聞連結為 sourceUrl，並標記為 INFERRED。
+- **等級 C (UNVERIFIED)**：完全找不到具體數字，targetPrice 填 null。
 
 ⚠️ 絕對禁止：不可自行推算合理目標價後填入 analystTargets，不可捏造日期與券商名稱。
 
@@ -91,7 +93,7 @@ ${userProvidedPrice ? `使用者提供參考價格：${userProvidedPrice} 元（
 `;
 
   const response = await (ai.models as any).generateContent({
-    model: "gemini-3-flash-preview",
+    model: "gemini-3.1-pro-preview",
     contents: prompt,
     tools: [{ googleSearch: {} }],
     toolConfig: { includeServerSideToolInvocations: true },
