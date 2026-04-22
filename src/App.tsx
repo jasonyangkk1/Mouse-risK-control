@@ -22,7 +22,7 @@ import {
   Trash2,
   ExternalLink
 } from 'lucide-react';
-import { analyzeStock, type StockAnalysis, type AnalystTarget } from './services/geminiService';
+import { analyzeStock, resolveStockTicker, type StockAnalysis, type AnalystTarget, type TickerResolution } from './services/geminiService';
 
 const ReliabilityBadge = ({ level }: { level: AnalystTarget["dataReliability"] }) => {
   const config = {
@@ -53,7 +53,16 @@ const ConsensusPanel = ({ analystTargets, consensusSummary }: { analystTargets: 
             <div className="text-[9px] text-slate-500 font-mono">{t.reportDate}</div>
           </div>
           <div className="flex flex-col items-end gap-0.5 shrink-0">
-            <div className="text-[11px] font-mono text-cyan-400">{t.targetPrice != null ? `目標 $${t.targetPrice}` : "目標 N/A"}</div>
+            <div className={`text-[11px] font-mono ${
+              t.dataReliability === "VERIFIED" 
+                ? "text-cyan-400 font-bold" 
+                : "text-slate-500 line-through opacity-70"
+            }`}>
+              {t.targetPrice != null ? `目標 $${t.targetPrice}` : "目標 N/A"}
+              {t.dataReliability !== "VERIFIED" && (
+                <span className="block text-[8px] no-underline opacity-60 mt-0.5">數據未經驗證，僅供參考</span>
+              )}
+            </div>
             <div className="text-[9px] text-slate-500">{t.rating}</div>
           </div>
           {t.sourceUrl && <a href={t.sourceUrl} target="_blank" rel="noopener noreferrer" className="text-[9px] text-cyan-500/60 hover:text-cyan-400 underline font-mono shrink-0">來源↗</a>}
@@ -74,6 +83,7 @@ export default function App() {
   const [ticker, setTicker] = useState('');
   const [price, setPrice] = useState('');
   const [loading, setLoading] = useState(false);
+  const [tickerOptions, setTickerOptions] = useState<TickerResolution[]>([]);
   const [result, setResult] = useState<StockAnalysis | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'dashboard' | 'intelligence' | 'history'>('dashboard');
@@ -104,10 +114,33 @@ export default function App() {
     setLoading(true);
     setError(null);
     setResult(null);
+    setTickerOptions([]);
 
     try {
+      const options = await resolveStockTicker(ticker);
+      if (options.length === 1) {
+        await executeAnalysis(options[0].ticker);
+      } else if (options.length > 1) {
+        setTickerOptions(options);
+      } else {
+        setError('找不到對應的股票代號，請重新輸入。');
+      }
+    } catch (err) {
+      console.error(err);
+      setError('搜尋失敗，請檢查網路連線或稍後再試。');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const executeAnalysis = async (resolvedTicker: string) => {
+    setLoading(true);
+    setError(null);
+    setTickerOptions([]);
+    
+    try {
       const parsedPrice = price ? parseFloat(price) : undefined;
-      const data = await analyzeStock(ticker, parsedPrice);
+      const data = await analyzeStock(resolvedTicker, parsedPrice);
       setResult(data);
       
       // Add to history
@@ -221,6 +254,40 @@ export default function App() {
         </p>
 
         <AnimatePresence>
+          {tickerOptions.length > 0 && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              className="mt-4 p-4 bg-white/5 border border-white/10 rounded-lg space-y-3"
+            >
+              <p className="text-[10px] text-cyan-500 font-mono tracking-widest uppercase mb-2">
+                Multiple candidates found. Please select:
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {tickerOptions.map((opt, i) => (
+                  <button
+                    key={i}
+                    onClick={() => executeAnalysis(opt.ticker)}
+                    className="flex justify-between items-center p-3 bg-white/5 hover:bg-cyan-500/10 border border-white/10 hover:border-cyan-500/50 rounded transition-all text-left group"
+                  >
+                    <div className="flex flex-col">
+                      <span className="text-[11px] font-mono font-bold text-white group-hover:text-cyan-400">
+                        {opt.ticker}
+                      </span>
+                      <span className="text-[9px] text-slate-500 uppercase tracking-tighter">
+                        {opt.name}
+                      </span>
+                    </div>
+                    <span className="text-[8px] text-slate-600 font-mono bg-white/5 px-1.5 py-0.5 rounded border border-white/5 uppercase">
+                      {opt.exchange}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </motion.div>
+          )}
+
           {error && (
             <motion.div
               initial={{ opacity: 0, y: -10 }}
