@@ -1,0 +1,7 @@
+{
+  "functions": {
+    "api/stock-proxy.ts": {
+      "runtime": "@vercel/node"
+    }
+  }
+}

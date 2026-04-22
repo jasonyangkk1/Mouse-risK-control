@@ -97,35 +97,17 @@ export const resolveStockTicker = async (input: string): Promise<TickerResolutio
 };
 
 export const fetchStockPrice = async (ticker: string): Promise<{ name: string; currentPrice: number; lastClose: number; exchange: string }> => {
-  const localProxyBase = "/api/stock-proxy?url=";
-  const publicProxyBase = "https://api.allorigins.win/get?url=";
+  const proxyBase = "/api/stock-proxy?url=";
   
   const fetchFromUrl = async (targetUrl: string) => {
-    // 1. Try local Express proxy first
     try {
-      const localRes = await fetch(`${localProxyBase}${encodeURIComponent(targetUrl)}`);
-      if (localRes.ok) {
-        const contentType = localRes.headers.get("content-type");
-        if (contentType && contentType.includes("application/json")) {
-          return await localRes.json();
-        }
-      }
+      const res = await fetch(`${proxyBase}${encodeURIComponent(targetUrl)}`);
+      if (!res.ok) throw new Error("取得台股即時資料失敗，請稍後再試");
+      
+      const data = await res.json();
+      return data;
     } catch (e) {
-      console.warn("Local proxy unavailable, trying fallback...");
-    }
-
-    // 2. Fallback to public proxy (for Vercel/Static deployments)
-    const publicUrl = `${publicProxyBase}${encodeURIComponent(targetUrl)}`;
-    const publicRes = await fetch(publicUrl);
-    if (!publicRes.ok) throw new Error(`連線失敗 (Status: ${publicRes.status})`);
-    
-    const data = await publicRes.json();
-    if (!data.contents) throw new Error("代理伺服器回傳無效數據");
-    
-    try {
-      return JSON.parse(data.contents);
-    } catch (e) {
-      throw new Error("解析官方數據失敗，請稍後再試");
+      throw new Error("取得台股即時資料失敗，請稍後再試");
     }
   };
 
